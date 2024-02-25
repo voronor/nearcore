@@ -1,4 +1,4 @@
-use crate::adjust_database::ChangeDbKindCommand;
+use crate::adjust_database::{ChangeDbKindCommand, PourDbCommand};
 use crate::analyse_data_size_distribution::AnalyseDataSizeDistributionCommand;
 use crate::analyse_gas_usage::AnalyseGasUsageCommand;
 use crate::compact::RunCompactionCommand;
@@ -46,6 +46,9 @@ enum SubCommand {
 
     /// Loads an in-memory trie for research purposes.
     LoadMemTrie(LoadMemTrieCommand),
+
+    /// Copy all data from one DB to another.
+    PourDb(PourDbCommand),
 }
 
 impl DatabaseCommand {
@@ -74,6 +77,7 @@ impl DatabaseCommand {
                 .unwrap_or_else(|e| panic!("Error loading config: {:#}", e));
                 cmd.run(near_config, home)
             }
+            SubCommand::PourDb(cmd) => cmd.run(home),
         }
     }
 }

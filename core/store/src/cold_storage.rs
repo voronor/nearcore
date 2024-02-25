@@ -46,8 +46,8 @@ pub trait ColdMigrationStore {
 /// The BatchTransaction can be used to write multiple set operations to the cold db in batches.
 /// [`write`] is called every time `transaction_size` overgrows `threshold_transaction_size`.
 /// [`write`] should also be called manually before dropping BatchTransaction to write any leftovers.
-struct BatchTransaction {
-    cold_db: std::sync::Arc<ColdDB>,
+pub struct BatchTransaction {
+    cold_db: std::sync::Arc<dyn Database>,
     transaction: DBTransaction,
     /// Size of all values keys and values in `transaction` in bytes.
     transaction_size: usize,
@@ -578,7 +578,7 @@ impl ColdMigrationStore for Store {
 }
 
 impl BatchTransaction {
-    pub fn new(cold_db: std::sync::Arc<ColdDB>, batch_size: usize) -> Self {
+    pub fn new(cold_db: std::sync::Arc<dyn Database>, batch_size: usize) -> Self {
         Self {
             cold_db,
             transaction: DBTransaction::new(),
@@ -606,7 +606,7 @@ impl BatchTransaction {
 
     /// Writes `self.transaction` and replaces it with new empty DBTransaction.
     /// Sets `self.transaction_size` to 0.
-    fn write(&mut self) -> io::Result<()> {
+    pub fn write(&mut self) -> io::Result<()> {
         if self.transaction.ops.is_empty() {
             return Ok(());
         }
