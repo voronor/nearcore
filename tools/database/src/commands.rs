@@ -1,4 +1,4 @@
-use crate::adjust_database::{ChangeDbKindCommand, PourDbCommand};
+use crate::adjust_database::{ChangeDbKindCommand, DeleteColumnCommand, PourDbCommand};
 use crate::analyse_data_size_distribution::AnalyseDataSizeDistributionCommand;
 use crate::analyse_gas_usage::AnalyseGasUsageCommand;
 use crate::compact::RunCompactionCommand;
@@ -49,6 +49,9 @@ enum SubCommand {
 
     /// Copy all data from one DB to another.
     PourDb(PourDbCommand),
+
+    /// Delete column from db.
+    DeleteColumn(DeleteColumnCommand),
 }
 
 impl DatabaseCommand {
@@ -78,6 +81,7 @@ impl DatabaseCommand {
                 cmd.run(near_config, home)
             }
             SubCommand::PourDb(cmd) => cmd.run(home),
+            SubCommand::DeleteColumn(cmd) => cmd.run(home),
         }
     }
 }

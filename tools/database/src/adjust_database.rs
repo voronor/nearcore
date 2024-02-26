@@ -1,7 +1,7 @@
 use clap::Parser;
 use near_store::db::Database;
 use near_store::metadata::DbKind;
-use near_store::{DBCol, NodeStorage, StoreConfig, Temperature};
+use near_store::{DBCol, Mode, NodeStorage, StoreConfig, Temperature};
 use rayon::iter::IntoParallelIterator;
 use rayon::iter::ParallelIterator;
 use std::path::{Path, PathBuf};
@@ -130,5 +130,39 @@ impl PourDbCommand {
             mode,
             Temperature::Hot,
         )?))
+    }
+}
+
+#[derive(Parser)]
+pub(crate) struct DeleteColumnCommand {
+    /// Db path
+    #[clap(long)]
+    db: PathBuf,
+    /// Column to delete
+    #[clap(long)]
+    column: DBCol,
+}
+impl DeleteColumnCommand {
+    pub(crate) fn run(&self, home_dir: &Path) -> anyhow::Result<()> {
+        let db = {
+            let db_path = if self.db.is_absolute() {
+                PathBuf::from(&self.db)
+            } else {
+                home_dir.join(&self.db)
+            };
+            let config = StoreConfig::default();
+            std::sync::Arc::new(near_store::db::RocksDB::open(
+                &db_path,
+                &config,
+                Mode::ReadWrite,
+                Temperature::Hot,
+            )?)
+        };
+
+        let mut transaction = near_store::db::DBTransaction::new();
+        transaction.delete_all(self.column);
+        db.write(transaction)?;
+
+        Ok(())
     }
 }
