@@ -1433,7 +1433,8 @@ pub fn load_config(
                 // Make sure validators tracks all shards, see
                 // https://github.com/near/nearcore/issues/7388
                 let error_message = "The `chain_id` field specified in genesis is among mainnet/betanet/testnet, so validator must track all shards. Please change `tracked_shards` field in config.json to be any non-empty vector";
-                validation_errors.push_cross_file_semantics_error(error_message.to_string());
+                tracing::error!(target = "config", error_message);
+                //validation_errors.push_cross_file_semantics_error(error_message.to_string());
             }
             Some(genesis)
         }
