@@ -1,7 +1,8 @@
-use self::arena::{Arena, STArena, STArenaMemory};
+use self::arena::{ArenaMut, STArena, STArenaMemory};
 use self::metrics::MEM_TRIE_NUM_ROOTS;
 use self::node::{MemTrieNodeId, MemTrieNodePtr};
 use self::updating::MemTrieUpdate;
+use arena::Arena;
 use near_primitives::errors::StorageError;
 use near_primitives::hash::CryptoHash;
 use near_primitives::shard_layout::ShardUId;

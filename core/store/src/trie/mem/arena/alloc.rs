@@ -1,8 +1,9 @@
 use super::metrics::MEM_TRIE_ARENA_ACTIVE_ALLOCS_COUNT;
-use super::{ArenaMemory, ArenaPos, ArenaSliceMut, STArenaMemory};
+use super::{ArenaPos, ArenaSliceMut, STArenaMemory};
 use crate::trie::mem::arena::metrics::{
     MEM_TRIE_ARENA_ACTIVE_ALLOCS_BYTES, MEM_TRIE_ARENA_MEMORY_USAGE_BYTES,
 };
+use crate::trie::mem::arena::{ArenaMemory, ArenaMemoryMut};
 use crate::trie::mem::flexible_data::encoding::BorshFixedSize;
 use near_o11y::metrics::IntGauge;
 
@@ -173,7 +174,7 @@ impl Allocator {
 mod test {
     use super::MAX_ALLOC_SIZE;
     use crate::trie::mem::arena::alloc::CHUNK_SIZE;
-    use crate::trie::mem::arena::{Arena, ArenaWithDealloc, STArena};
+    use crate::trie::mem::arena::{ArenaMut, ArenaWithDealloc, STArena};
     use std::mem::size_of;
 
     #[test]
