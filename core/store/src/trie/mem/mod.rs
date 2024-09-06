@@ -160,7 +160,7 @@ impl MemTries {
         &self,
         root: CryptoHash,
         track_trie_changes: bool,
-    ) -> Result<MemTrieUpdate, StorageError> {
+    ) -> Result<MemTrieUpdate<STArenaMemory>, StorageError> {
         let root_id = if root == CryptoHash::default() {
             None
         } else {
