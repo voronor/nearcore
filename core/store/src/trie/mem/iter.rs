@@ -10,7 +10,7 @@
 //!    column.
 //!
 //! Testing of the `MemTrieIterator` is done together by tests of `DiskTrieIterator`.
-use super::arena::ArenaMemory;
+use super::arena::{ArenaMemory, STArenaMemory};
 use super::node::{MemTrieNodePtr, MemTrieNodeView};
 use crate::{
     trie::{iterator::TrieItem, OptimizedValueRef},
@@ -70,16 +70,16 @@ impl<'a, M: ArenaMemory> Crumb<'a, M> {
 /// The trail and the key_nibbles may have different lengths e.g. an extension trie node
 /// will add only a single item to the trail but may add multiple nibbles to the key_nibbles.
 
-pub struct MemTrieIterator<'a, M: ArenaMemory> {
-    root: Option<MemTrieNodePtr<'a, M>>,
+pub struct MemTrieIterator<'a> {
+    root: Option<MemTrieNodePtr<'a, STArenaMemory>>,
     trie: &'a Trie,
-    trail: Vec<Crumb<'a, M>>,
+    trail: Vec<Crumb<'a, STArenaMemory>>,
     key_nibbles: Vec<u8>,
 }
 
-impl<'a, M: ArenaMemory> MemTrieIterator<'a, M> {
+impl<'a> MemTrieIterator<'a> {
     /// Create a new iterator.
-    pub fn new(root: Option<MemTrieNodePtr<'a, M>>, trie: &'a Trie) -> Self {
+    pub fn new(root: Option<MemTrieNodePtr<'a, STArenaMemory>>, trie: &'a Trie) -> Self {
         let mut r = MemTrieIterator { root, trie, trail: Vec::new(), key_nibbles: Vec::new() };
         r.descend_into_node(root);
         r
@@ -95,7 +95,7 @@ impl<'a, M: ArenaMemory> MemTrieIterator<'a, M> {
         &mut self,
         mut key: NibbleSlice<'_>,
         is_prefix_seek: bool,
-    ) -> Option<MemTrieNodePtr<'a, M>> {
+    ) -> Option<MemTrieNodePtr<'a, STArenaMemory>> {
         self.trail.clear();
         self.key_nibbles.clear();
         // Checks if a key in an extension or leaf matches our search query.
@@ -168,7 +168,7 @@ impl<'a, M: ArenaMemory> MemTrieIterator<'a, M> {
     /// Fetches node by its ptr and adds it to the trail.
     ///
     /// The node is stored as the last [`Crumb`] in the trail.
-    fn descend_into_node(&mut self, ptr: Option<MemTrieNodePtr<'a, M>>) {
+    fn descend_into_node(&mut self, ptr: Option<MemTrieNodePtr<'a, STArenaMemory>>) {
         let node = ptr.map(|ptr| {
             let view = ptr.view();
             if let Some(recorder) = &self.trie.recorder {
@@ -190,7 +190,7 @@ impl<'a, M: ArenaMemory> MemTrieIterator<'a, M> {
     }
 
     /// Calculates the next step of the iteration.
-    fn iter_step(&mut self) -> Option<IterStep<'a, M>> {
+    fn iter_step(&mut self) -> Option<IterStep<'a, STArenaMemory>> {
         let last = self.trail.last_mut()?;
         last.increment();
         Some(match (last.status, &last.node) {
@@ -251,7 +251,7 @@ enum IterStep<'a, M: ArenaMemory> {
     Value(OptimizedValueRef),
 }
 
-impl<'a, M: ArenaMemory> Iterator for MemTrieIterator<'a, M> {
+impl<'a> Iterator for MemTrieIterator<'a> {
     type Item = Result<TrieItem, StorageError>;
 
     fn next(&mut self) -> Option<Self::Item> {
