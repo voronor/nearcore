@@ -1,5 +1,7 @@
 mod alloc;
 pub mod concurrent;
+pub mod frozen;
+pub mod hybrid;
 mod metrics;
 
 use self::alloc::Allocator;
