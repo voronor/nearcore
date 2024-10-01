@@ -81,7 +81,11 @@ enum SubCommand {
 }
 
 #[derive(clap::Parser)]
-struct InitCmd;
+struct InitCmd {
+    // `trim_columns` is a flag now, and it defaults to `false` if not provided
+    #[arg(short, long, action = clap::ArgAction::SetTrue, help = "Drops the unnecessary columns from the db")]
+    trim_columns: bool,
+}
 
 #[derive(clap::Parser)]
 struct FinalizeCmd;
@@ -182,8 +186,8 @@ impl ForkNetworkCommand {
         near_config.config.store.state_snapshot_enabled = false;
 
         match &self.command {
-            SubCommand::Init(InitCmd) => {
-                self.init(near_config, home_dir)?;
+            SubCommand::Init(InitCmd { trim_columns }) => {
+                self.init(near_config, home_dir, trim_columns)?;
             }
             SubCommand::AmendAccessKeys(AmendAccessKeysCmd { batch_size }) => {
                 self.amend_access_keys(*batch_size, near_config, home_dir)?;
@@ -243,7 +247,7 @@ impl ForkNetworkCommand {
     // Snapshots the DB.
     // Determines parameters that will be used to initialize the new chain.
     // After this completes, almost every DB column can be removed, however this command doesn't delete anything itself.
-    fn init(&self, near_config: &mut NearConfig, home_dir: &Path) -> anyhow::Result<()> {
+    fn write_fork_info(&self, near_config: &mut NearConfig, home_dir: &Path) -> anyhow::Result<()> {
         // Open storage with migration
         let storage = open_storage(&home_dir, near_config).unwrap();
         let store = storage.get_hot_store();
@@ -310,6 +314,41 @@ impl ForkNetworkCommand {
             )?;
         }
         store_update.commit()?;
+        Ok(())
+    }
+
+    fn init(
+        &self,
+        near_config: &mut NearConfig,
+        home_dir: &Path,
+        trim_columns: &bool,
+    ) -> anyhow::Result<()> {
+        self.write_fork_info(near_config, home_dir)?;
+        let mut unwanted_cols = Vec::new();
+        for col in DBCol::iter() {
+            match col {
+                DBCol::DbVersion
+                | DBCol::Misc
+                | DBCol::State
+                | DBCol::FlatState
+                | DBCol::EpochInfo
+                | DBCol::FlatStorageStatus
+                | DBCol::ChunkExtra => {}
+                _ => unwanted_cols.push(col),
+            }
+        }
+
+        if *trim_columns {
+            near_store::clear_columns(
+                home_dir,
+                near_config.client_config.archive,
+                &near_config.config.store,
+                near_config.config.cold_store.as_ref(),
+                &unwanted_cols,
+            )
+            .context("failed deleting unwanted columns")?;
+        }
+
         Ok(())
     }
 

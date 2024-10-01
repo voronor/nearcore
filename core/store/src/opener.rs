@@ -248,6 +248,18 @@ impl<'a> StoreOpener<'a> {
     /// other hand, if mode is [`Mode::Create`], fails if the database already
     /// exists.
     pub fn open_in_mode(&self, mode: Mode) -> Result<crate::NodeStorage, StoreOpenerError> {
+        let (hot_db, hot_snapshot, cold_db, cold_snapshot) = self.open_dbs(mode)?;
+        let storage = NodeStorage::from_rocksdb(hot_db, cold_db);
+
+        hot_snapshot.remove()?;
+        cold_snapshot.remove()?;
+        Ok(storage)
+    }
+
+    fn open_dbs(
+        &self,
+        mode: Mode,
+    ) -> Result<(RocksDB, Snapshot, Option<RocksDB>, Snapshot), StoreOpenerError> {
         {
             let hot_path = self.hot.path.display().to_string();
             let cold_path = match &self.cold {
@@ -279,12 +291,7 @@ impl<'a> StoreOpener<'a> {
             .transpose()?
             .map(|(db, _)| db);
 
-        let storage = NodeStorage::from_rocksdb(hot_db, cold_db);
-
-        hot_snapshot.remove()?;
-        cold_snapshot.remove()?;
-
-        Ok(storage)
+        Ok((hot_db, hot_snapshot, cold_db, cold_snapshot))
     }
 
     pub fn create_snapshots(&self, mode: Mode) -> Result<(Snapshot, Snapshot), StoreOpenerError> {
@@ -623,6 +630,26 @@ pub fn checkpoint_hot_storage_and_cleanup_columns(
     }
 
     Ok(node_storage)
+}
+
+pub fn clear_columns(
+    home_dir: &std::path::Path,
+    archive: bool,
+    config: &StoreConfig,
+    cold_config: Option<&StoreConfig>,
+    cols: &[DBCol],
+) -> anyhow::Result<()> {
+    let opener = StoreOpener::new(home_dir, archive, config, cold_config);
+    let (mut hot_db, _hot_snapshot, cold_db, _cold_snapshot) =
+        opener.open_dbs(Mode::ReadWriteExisting)?;
+    hot_db.clear_cols(cols)?;
+    if let Some(mut cold) = cold_db {
+        cold.clear_cols(cols)?;
+    }
+    core::mem::drop(hot_db);
+    let (_hot_db, _hot_snapshot, _cold_db, _cold_snapshot) =
+        opener.open_dbs(Mode::ReadWriteExisting)?;
+    Ok(())
 }
 
 #[cfg(test)]

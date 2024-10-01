@@ -684,6 +684,16 @@ impl RocksDB {
             }
         }
     }
+
+    /// Drops the specified column families from the database.
+    pub fn clear_cols(&mut self, cols: &[DBCol]) -> anyhow::Result<()> {
+        for col in cols {
+            self.db
+                .drop_cf(col_name(*col))
+                .with_context(|| format!("failed to drop column family {:?}", col,))?;
+        }
+        Ok(())
+    }
 }
 
 impl Drop for RocksDB {
