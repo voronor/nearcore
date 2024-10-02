@@ -54,6 +54,7 @@ bytesize.workspace = true
 # old protocol versions.
 pwasm-utils_12 = { workspace = true, optional = true }
 parity-wasm_41 = { workspace = true, optional = true }
+ed25519-dalek = { version = "2.1.1", path = "../../core/crypto/curve25519-dalek/ed25519-dalek", features = ["hazmat"] }
 
 [target.'cfg(target_arch = "x86_64")'.dependencies]
 wasmer-runtime = { workspace = true, optional = true }
