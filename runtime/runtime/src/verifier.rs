@@ -3,7 +3,7 @@ use crate::near_primitives::account::Account;
 use crate::VerificationResult;
 use near_crypto::key_conversion::is_valid_staking_key;
 use near_parameters::RuntimeConfig;
-use near_primitives::account::AccessKeyPermission;
+use near_primitives::{account::AccessKeyPermission, hash::CryptoHash};
 use near_primitives::action::delegate::SignedDelegateAction;
 use near_primitives::checked_feature;
 use near_primitives::errors::{
@@ -134,6 +134,88 @@ pub fn validate_transaction(
     tx_cost(&config, transaction, gas_price, sender_is_receiver, current_protocol_version)
         .map_err(|_| InvalidTxError::CostOverflow.into())
 }
+
+
+/// Validates multiple transactions at a time without using the state.
+/// Expects transactions signed with ed25519 scheme
+/// It allows any node to validate transactions before forwarding
+/// them to the node that tracks the `signer_id` account.
+/// The function will output an error if any of the transactions is malformed.
+pub fn validate_batch_transactions(
+    config: &RuntimeConfig,
+    gas_price_list: Vec<Balance>,
+    signed_transaction_list: Vec<&SignedTransaction>,
+    verify_signature_list: Vec<bool>,
+    current_protocol_version: ProtocolVersion,
+) -> Result<Vec<TransactionCost>, InvalidTxError> {
+
+    if gas_price_list.len() != signed_transaction_list.len() ||
+    signed_transaction_list.len() != verify_signature_list.len(){
+        return Err(InvalidTxError::IncoherentBatchTxsSizes)
+    }
+
+    let mut signatures_list: Vec<&near_crypto::Signature> = Vec::new();
+    let mut data_list: Vec<CryptoHash> = Vec::new();
+    let mut public_keys: Vec<&near_crypto::PublicKey> = Vec::new();
+    let mut transactions_cost: Vec<TransactionCost> = Vec::new();
+
+    for (signed_transaction, gas_price) in signed_transaction_list.iter().zip(gas_price_list.iter()){
+        // Don't allow V1 currently. This will be changed when the new protocol version is introduced.
+        if matches!(signed_transaction.transaction, near_primitives::transaction::Transaction::V1(_)) {
+            return Err(InvalidTxError::InvalidTransactionVersion);
+        }
+
+        signatures_list.push(&signed_transaction.signature);
+        data_list.push(signed_transaction.get_hash());
+        public_keys.push(signed_transaction.transaction.public_key());
+
+        let transaction = &signed_transaction.transaction;
+        let signer_id = transaction.signer_id();
+        let transaction_size = signed_transaction.get_size();
+        let max_transaction_size = config.wasm_config.limit_config.max_transaction_size;
+
+        // For the moment the is the approach. A possible future change is to accept transactions
+        // where the sizes are smaller than max_transaction_sizes
+        if transaction_size > max_transaction_size {
+            return Err(InvalidTxError::TransactionSizeExceeded {
+                size: transaction_size,
+                limit: max_transaction_size,
+            }
+            .into());
+        }
+
+        validate_actions(
+            &config.wasm_config.limit_config,
+            transaction.actions(),
+            current_protocol_version,
+        )
+        .map_err(InvalidTxError::ActionsValidation)?;
+
+        let sender_is_receiver = transaction.receiver_id() == signer_id;
+
+        match tx_cost(&config, transaction, *gas_price, sender_is_receiver, current_protocol_version){
+            Ok(tc) =>  transactions_cost.push(tc),
+            Err(_) => return Err(InvalidTxError::CostOverflow.into()),
+        }
+    }
+
+    if verify_signature_list.contains(&false){
+        return Err(InvalidTxError::InvalidSignature);
+    }
+
+    let data_list = data_list.iter()
+                    .map(|hash| hash.as_ref())
+                    .collect();
+    if !near_crypto::Signature::verify_batch(signatures_list, data_list, public_keys){
+        return Err(InvalidTxError::InvalidSignature);
+    }
+
+    Ok(transactions_cost)
+}
+
+
+
+
 
 /// Verifies the signed transaction on top of given state, charges transaction fees
 /// and balances, and updates the state for the used account and access keys.
