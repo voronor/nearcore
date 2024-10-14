@@ -232,8 +232,6 @@ pub enum InvalidTxError {
         /// The number of blocks since the last included chunk of the shard.
         missed_chunks: u64,
     },
-
-    // ADDED HERE
     /// The transaction batch is incoherent in sizes
     IncoherentBatchTxsSizes,
 }
